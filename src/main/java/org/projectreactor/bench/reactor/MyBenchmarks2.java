@@ -18,15 +18,23 @@ import java.util.concurrent.TimeUnit;
  */
 public class MyBenchmarks2 {
 
+    public static final int N = 100_000;
+
+    public static int BACKLOG = 1024 * 1024;
+
     @Measurement(iterations = 5, time = 1)
     @Warmup(iterations = 5, time = 1)
-    @Fork(value = 3, jvmArgs = { "-Xmx1024m" })
+    @Fork(value = 1, jvmArgs = { "-Xmx1024m" })
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @State(Scope.Thread)
     public static abstract class AbstractBenchmark {
 
         Event<?> event;
+
+        volatile boolean processed;
+
+        protected Consumer<Event<?>> consumer;
 
         @Setup
         public void setup() {
@@ -50,37 +58,55 @@ public class MyBenchmarks2 {
 
         protected abstract void doBenchmark();
 
+        @Benchmark
+        public void benchmark2() {
+            processed = false;
+
+            for (int i = 0; i < N; i++) {
+                doBenchmark();
+            }
+
+            while (!processed) {}
+        }
+
+        protected void createCustomer() {
+            this.consumer = new Consumer<Event<?>>() {
+
+                int counter = 0;
+
+                @Override
+                public void accept(Event<?> event) {
+                    counter++;
+                    if(counter == N) {
+                        processed = true;
+                        counter = 0;
+                    }
+                }
+
+            };
+        }
+
     }
 
     public static class RingBufferDispatcher_Benchmark extends AbstractBenchmark {
 
         RingBufferDispatcher dispatcher;
 
-        Consumer<Event<?>> consumer;
-
         @Override
         protected void doSetup() {
             dispatcher = new RingBufferDispatcher(
                     "dispatcher",
-                    MyParams.BACKLOG,
+                    BACKLOG,
                     null,
                     ProducerType.MULTI,
                     new BusySpinWaitStrategy()
             );
-            consumer = new Consumer<Event<?>>() {
-
-                @Override
-                public void accept(Event<?> event) {
-                }
-
-            };
+            createCustomer();
         }
 
         @Override
         protected void doTearDown() {
-            System.out.println("doTearDown");
-            dispatcher.awaitAndShutdown(10, TimeUnit.SECONDS);
-            System.out.println("after doTearDown");
+            dispatcher.awaitAndShutdown(5, TimeUnit.SECONDS);
         }
 
         @Override
@@ -91,25 +117,17 @@ public class MyBenchmarks2 {
                     null
             );
         }
+
     }
 
     public static class RingBufferDispatcher2_Benchmark extends AbstractBenchmark {
 
         private RingBufferDispatcher2 dispatcher;
 
-        private Consumer<Event<?>> consumer;
-
         @Override
         protected void doSetup() {
-            dispatcher = new RingBufferDispatcher2("rbd2", MyParams.BACKLOG, null, ProducerType.MULTI, new BusySpinWaitStrategy());
-
-            consumer = new Consumer<Event<?>>() {
-
-                @Override
-                public void accept(Event<?> event) {
-                }
-
-            };
+            dispatcher = new RingBufferDispatcher2("rbd2", BACKLOG, null, ProducerType.MULTI, new BusySpinWaitStrategy());
+            createCustomer();
         }
 
         @Override
@@ -133,8 +151,10 @@ public class MyBenchmarks2 {
 
         @Override
         protected void doSetup() {
-            processor = RingBufferProcessor.share("processor", MyParams.BACKLOG, new BusySpinWaitStrategy());
+            processor = RingBufferProcessor.share("processor", BACKLOG, new BusySpinWaitStrategy());
             processor.subscribe(new Subscriber<Event>() {
+
+                int counter = 0;
 
                 @Override
                 public void onSubscribe(Subscription s) {
@@ -143,6 +163,11 @@ public class MyBenchmarks2 {
 
                 @Override
                 public void onNext(Event event) {
+                    counter++;
+                    if (counter == N) {
+                        processed = true;
+                        counter = 0;
+                    }
                 }
 
                 @Override
