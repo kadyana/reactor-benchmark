@@ -24,7 +24,7 @@ public class MyBenchmarks2 {
 
     @Measurement(iterations = 5, time = 1)
     @Warmup(iterations = 5, time = 1)
-    @Fork(value = 1, jvmArgs = { "-Xmx1024m" })
+    @Fork(value = 3, jvmArgs = { "-Xmx1024m" })
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @State(Scope.Thread)
