@@ -27,7 +27,7 @@ public class RingBufferDispatcherVsProcessorBenchmarks {
     @State(Scope.Thread)
     public static abstract class AbstractBenchmark {
 
-        @Param ( { "1024", "131072", "1048576" } )
+        @Param ( { "1024", "1048576" } )
         public int BUFFER_SIZE;
 
         Event<?> event;
