@@ -1,5 +1,6 @@
 package org.projectreactor.bench.reactor;
 
+import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.*;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -19,8 +20,8 @@ import java.util.concurrent.TimeUnit;
 public class RingBufferDispatcherVsProcessorBenchmarks {
 
     @Measurement(iterations = 5, time = 1)
-    @Warmup(iterations = 3, time = 1)
-    @Fork(value = 1, jvmArgs = { "-Xmx1024m" })
+    @Warmup(iterations = 5, time = 1)
+    @Fork(value = 3, jvmArgs = { "-Xmx1024m" })
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @State(Scope.Thread)
@@ -36,6 +37,11 @@ public class RingBufferDispatcherVsProcessorBenchmarks {
         @Setup
         public void setup() {
             event = Event.wrap("Hello World!");
+            this.consumer = new Consumer<Event<?>>() {
+                @Override
+                public void accept(Event<?> event) {
+                }
+            };
             doSetup();
         }
 
@@ -49,79 +55,15 @@ public class RingBufferDispatcherVsProcessorBenchmarks {
         protected abstract void doTearDown();
 
         @Benchmark
-        public void justDispatch() {
+        public void benchmark() {
             doBenchmark();
         }
 
         protected abstract void doBenchmark();
 
-        protected void createCustomer() {
-            this.consumer = new Consumer<Event<?>>() {
-                @Override
-                public void accept(Event<?> event) {
-                }
-            };
-        }
-
-    }
-
-    public static class RingBufferDispatcher_Benchmark extends AbstractBenchmark {
-
-        RingBufferDispatcher dispatcher;
-
-        @Override
-        protected void doSetup() {
-            dispatcher = new RingBufferDispatcher(
-                    "dispatcher",
-                    BUFFER_SIZE,
-                    null,
-                    ProducerType.MULTI,
-                    new BusySpinWaitStrategy()
-            );
-            createCustomer();
-        }
-
-        @Override
-        protected void doTearDown() {
-            dispatcher.awaitAndShutdown(5, TimeUnit.SECONDS);
-        }
-
-        @Override
-        protected void doBenchmark() {
-            dispatcher.dispatch(event, consumer, null);
-        }
-
-    }
-
-    public static class RingBufferDispatcher3_Benchmark extends AbstractBenchmark {
-
-        private RingBufferDispatcher3 dispatcher;
-
-        @Override
-        protected void doSetup() {
-            dispatcher = new RingBufferDispatcher3("dispatcher", BUFFER_SIZE, null, ProducerType.MULTI, new BusySpinWaitStrategy());
-            createCustomer();
-        }
-
-        @Override
-        protected void doTearDown() {
-            dispatcher.shutdown();
-        }
-
-        @Override
-        protected void doBenchmark() {
-            dispatcher.dispatch(event, consumer, null);
-        }
-    }
-
-    public static class RingBufferProcessor_Benchmark extends AbstractBenchmark {
-
-        private RingBufferProcessor<Event<?>> processor;
-
-        @Override
-        protected void doSetup() {
-            processor = RingBufferProcessor.share("processor", BUFFER_SIZE, new BusySpinWaitStrategy());
-            processor.subscribe(new Subscriber<Event>() {
+        @NotNull
+        protected Subscriber<Event> createSubscriber() {
+            return new Subscriber<Event>() {
 
                 @Override
                 public void onSubscribe(Subscription s) {
@@ -140,7 +82,112 @@ public class RingBufferDispatcherVsProcessorBenchmarks {
                 public void onComplete() {
                 }
 
-            });
+            };
+        }
+
+    }
+
+    public static class RingBufferDispatcher_MULTI_Benchmark extends AbstractBenchmark {
+
+        RingBufferDispatcher dispatcher;
+
+        @Override
+        protected void doSetup() {
+            dispatcher = new RingBufferDispatcher(
+                    "dispatcher",
+                    BUFFER_SIZE,
+                    null,
+                    ProducerType.MULTI,
+                    new BusySpinWaitStrategy()
+            );
+        }
+
+        @Override
+        protected void doTearDown() {
+            dispatcher.awaitAndShutdown(5, TimeUnit.SECONDS);
+        }
+
+        @Override
+        protected void doBenchmark() {
+            dispatcher.dispatch(event, consumer, null);
+        }
+
+    }
+
+    public static class RingBufferDispatcher_SINGLE_Benchmark extends AbstractBenchmark {
+
+        RingBufferDispatcher dispatcher;
+
+        @Override
+        protected void doSetup() {
+            dispatcher = new RingBufferDispatcher(
+                    "dispatcher",
+                    BUFFER_SIZE,
+                    null,
+                    ProducerType.SINGLE,
+                    new BusySpinWaitStrategy()
+            );
+        }
+
+        @Override
+        protected void doTearDown() {
+            dispatcher.awaitAndShutdown(5, TimeUnit.SECONDS);
+        }
+
+        @Override
+        protected void doBenchmark() {
+            dispatcher.dispatch(event, consumer, null);
+        }
+    }
+
+    public static class RingBufferDispatcher3_MULTI_Benchmark extends AbstractBenchmark {
+
+        private RingBufferDispatcher3 dispatcher;
+
+        @Override
+        protected void doSetup() {
+            dispatcher = new RingBufferDispatcher3("dispatcher", BUFFER_SIZE, null, ProducerType.MULTI, new BusySpinWaitStrategy());
+        }
+
+        @Override
+        protected void doTearDown() {
+            dispatcher.shutdown();
+        }
+
+        @Override
+        protected void doBenchmark() {
+            dispatcher.dispatch(event, consumer, null);
+        }
+    }
+
+    public static class RingBufferDispatcher3_SINGLE_Benchmark extends AbstractBenchmark {
+
+        private RingBufferDispatcher3 dispatcher;
+
+        @Override
+        protected void doSetup() {
+            dispatcher = new RingBufferDispatcher3("dispatcher", BUFFER_SIZE, null, ProducerType.SINGLE, new BusySpinWaitStrategy());
+        }
+
+        @Override
+        protected void doTearDown() {
+            dispatcher.shutdown();
+        }
+
+        @Override
+        protected void doBenchmark() {
+            dispatcher.dispatch(event, consumer, null);
+        }
+    }
+
+    public static class RingBufferProcessor_MULTI_Benchmark extends AbstractBenchmark {
+
+        private RingBufferProcessor<Event<?>> processor;
+
+        @Override
+        protected void doSetup() {
+            processor = RingBufferProcessor.share("processor", BUFFER_SIZE, new BusySpinWaitStrategy());
+            processor.subscribe(createSubscriber());
         }
 
         @Override
@@ -154,5 +201,25 @@ public class RingBufferDispatcherVsProcessorBenchmarks {
         }
     }
 
+    public static class RingBufferProcessor_SINGLE_Benchmark extends AbstractBenchmark {
+
+        private RingBufferProcessor<Event<?>> processor;
+
+        @Override
+        protected void doSetup() {
+            processor = RingBufferProcessor.create("processor", BUFFER_SIZE, new BusySpinWaitStrategy());
+            processor.subscribe(createSubscriber());
+        }
+
+        @Override
+        protected void doTearDown() {
+            processor.shutdown();
+        }
+
+        @Override
+        protected void doBenchmark() {
+            processor.onNext(event);
+        }
+    }
 
 }

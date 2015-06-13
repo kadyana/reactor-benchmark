@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 public class RingBufferDispatcherTailRecursionBenchmarks {
 
     @Measurement(iterations = 5, time = 1)
-    @Warmup(iterations = 3, time = 1)
-    @Fork(value = 1, jvmArgs = { "-Xmx1024m" })
+    @Warmup(iterations = 5, time = 1)
+    @Fork(value = 3, jvmArgs = { "-Xmx1024m" })
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @State(Scope.Thread)
