@@ -1,1 +1,3 @@
-mvn clean package && java -jar target/microbenchmarks.jar ".*MyBenchmarks2.*"
+mvn clean package && java -jar target/microbenchmarks.jar ".*RingBufferDispatcherVs.*"
+
+mvn clean package && java -jar target/microbenchmarks.jar ".*RingBufferDispatcherTail.*"
